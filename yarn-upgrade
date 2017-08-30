@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+set -e
+
+target=~/work/contrib/yarn
+
+latest_version="$(
+  curl -L --silent --show-error \
+    https://api.github.com/repos/yarnpkg/yarn/releases |
+  jq -r 'map(select(.prerelease == false))[0].name[1:]'
+)"
+
+current_version="$(yarn --version || echo "")"
+
+if [ "$latest_version" != "$current_version" ]; then
+  echo "updating from ${current_version} to ${latest_version}"
+
+  dir="$(mktemp -d --suffix "-yarn-upgrade")"
+
+  pushd "$dir"
+
+  curl -L --silent --show-error -O "https://yarnpkg.com/latest.tar.gz"
+  curl -L --silent --show-error -O "https://yarnpkg.com/latest.tar.gz.asc"
+
+  gpg --verify \
+    "latest.tar.gz.asc" \
+    "latest.tar.gz"
+
+  mkdir -p "$target"
+  tar xzf "latest.tar.gz" -C "$target" --strip-components 1
+
+  popd
+
+  rm -r "$dir"
+else
+  echo "up to date (${latest_version})"
+fi

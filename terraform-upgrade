@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+set -e
+
+base_url="https://releases.hashicorp.com/terraform"
+
+latest_version="$(
+  curl --silent "https://releases.hashicorp.com/terraform/" |
+  sed -ne 's/.*<a href="\/terraform\/\(.*\)\/".*/\1/p' |
+  grep -v "rc\|beta" |
+  head -n1
+)"
+
+current_version="$(
+  terraform -v |
+  sed -ne 's/Terraform v\(.*\)/\1/p'
+)"
+
+if [ "$latest_version" != "$current_version" ]; then
+  echo "updating from ${current_version} to ${latest_version}"
+
+  dir="$(mktemp -d --suffix "-terraform-upgrade")"
+  prefix="${base_url}/${latest_version}/terraform_${latest_version}"
+
+  pushd "$dir"
+
+  curl --silent --show-error -O "${prefix}_SHA256SUMS"
+  curl --silent --show-error -O "${prefix}_SHA256SUMS.sig"
+  curl --silent --show-error -O "${prefix}_linux_amd64.zip"
+
+  gpg --verify \
+    "terraform_${latest_version}_SHA256SUMS.sig" \
+    "terraform_${latest_version}_SHA256SUMS"
+
+  grep "_linux_amd64" "terraform_${latest_version}_SHA256SUMS" |
+    shasum -a 256 -c
+
+  unzip -o "terraform_${latest_version}_linux_amd64.zip" "terraform" -d ~/bin/
+
+  popd
+
+  rm -r "$dir"
+else
+  echo "up to date (${latest_version})"
+fi
